@@ -23,7 +23,8 @@ firebase_admin.initialize_app(firebase_credentials, {
     'databaseURL': FIREBASE_DATABASE_URL
 })
 db_root_ref = db.reference('/')
-db_boards_ref = db.reference('Boards')
+db_playing_ref = db.reference('/boards/playing')
+db_games_ref = db.reference('/boards/games')
 
 
 # Board matrix
@@ -81,7 +82,8 @@ def check_mentions(api, keywords, last_mention):
         # 5 - CHECK IF TEXT CONTAIN ANY OF THE KEYWORDS 
         if any(keyword in tweet.text.lower() for keyword in keywords):
             # 6 - CHECK IF EXISTS A PREVIOUS GAME
-            game_exists = check_existing_game(tweet.user.name)
+            game_exists = check_existing_game(tweet.user.screen_name)
+            print('Game_exists', game_exists)
             if not game_exists:
                 # 7 - IF NOT EXISTS A PREVIOUS GAME, START A NEW ONE IF KEYWORD IS "START"
                 if keyword == 'start':
@@ -97,20 +99,28 @@ def check_mentions(api, keywords, last_mention):
 
 def start_game(username, id, api):
     # 8 - SAVE NEW GAME DATA
-    data = {
-        'id': id,
-        'date': datetime.datetime.now(),
-        'status': 'playing'
+    playing_data = {
+        'user': username
     }
-    set_db(db_boards_ref, username, data)
-    # 9 - REPLY WITH INSTRUCTIONS
+    # 9 - SAVE PLAYING GAME
+    set_db(db_playing_ref, id, playing_data)
+    # 10 - CREATE NEW GAME
+    game_data = {
+        'moves': {
+            'ia': [],
+            'user': []
+        },
+        'user': username,
+        'date': datetime.datetime.now()
+    }
+    set_db(db_games_ref, id, game_data)
+    # 11 - REPLY WITH INSTRUCTIONS
     api.update_status(status='Ok, challenge accepted. To start playing reply with row (a,b,c) and col (1,2,3) like b1, a2, c0...', in_reply_to_status_id=id, auto_populate_reply_metadata=True)
     print('Reply done')
 
 
-
 def check_existing_game(username):
-    return db_boards_ref.child(username).order_by_child('status').equal_to('playing').get()
+    return db_playing_ref.order_by_child('user').equal_to(username).get()
 
 
 def get_last_mention():
@@ -127,23 +137,7 @@ def get_db(ref, key):
 
 
 def set_db(ref, key, data):
-    return ref.set({
-        key: data
-    })
-    # ref.set({
-    #     'Employee': {
-    #         'emp1': {
-    #             'name': 'Parwiz',
-    #             'lname': 'Forogh',
-    #             'age': 24
-    #         },
-    #         'emp2': {
-    #             'name': 'Orgoth',
-    #             'lname': 'Margh',
-    #             'age': 30
-    #         }
-    #     }
-    # })
+    return ref.child(key).set(data)
 
 
 def main():
